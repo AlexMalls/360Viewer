@@ -59,10 +59,19 @@
 </div>
 
 <!-- Three.js ESM (fixe a versão se quiser estabilidade) -->
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.159.0/build/three.module.js"
+  }
+}
+</script>
+
 <script type="module">
   import * as THREE from "https://unpkg.com/three@0.159.0/build/three.module.js";
   import { OrbitControls } from "https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js";
-
+  
   // --- Básico de cena ---
   const container = document.getElementById('viewer');
   const renderer = new THREE.WebGLRenderer({ antialias:true });
@@ -308,3 +317,4 @@
 </script>
 </body>
 </html>
+
