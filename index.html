@@ -3,258 +3,161 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>360 Image Visualizer</title>
+  <title>360 Viewer – Photo Sphere Viewer</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photo-sphere-viewer@5/dist/photo-sphere-viewer.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/gyroscope-plugin@5/dist/index.css">
   <style>
     * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; background:#0b0f14; color:#e6edf3; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; }
+    html, body { height:100%; margin:0; background:#0b0f14; color:#e6edf3; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; }
     #app { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr; }
-    header { display:flex; gap:.5rem; align-items:center; padding:.6rem .8rem; background: linear-gradient(180deg, rgba(255,255,255,.04), transparent); border-bottom: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(6px); }
+    header { display:flex; gap:.5rem; align-items:center; padding:.6rem .8rem; background: linear-gradient(180deg, rgba(255,255,255,.04), transparent); border-bottom: 1px solid rgba(255,255,255,.08); }
     header h1 { margin:0; font-size: 1rem; letter-spacing:.2px; font-weight:600; opacity:.9 }
     header .spacer { flex:1 }
     .btn { appearance:none; border:1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color:#e6edf3; padding:.45rem .7rem; border-radius: 999px; cursor:pointer; font-weight:600; font-size:.9rem; transition: .15s ease; }
     .btn:hover { background: rgba(255,255,255,.12); }
-    .btn:active { transform: translateY(1px); }
-    .btn[disabled] { opacity:.6; cursor:not-allowed; }
-    .row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
-    .input { border:1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color:#e6edf3; padding:.45rem .6rem; border-radius: 10px; min-width: 200px; }
-    #viewer { position: relative; overflow: hidden; }
+    .input { border:1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color:#e6edf3; padding:.45rem .6rem; border-radius: 10px; min-width: 220px; }
+    #viewer { position: relative; background:#0b0f14; }
     #dropzone { position:absolute; inset:0; display:none; place-items:center; background: rgba(35, 131, 226, .12); outline: 2px dashed rgba(35,131,226,.8); outline-offset: -12px; z-index: 5; }
     #dropzone p { background: rgba(11,15,20,.8); padding: .6rem .8rem; border-radius: 12px; border:1px solid rgba(255,255,255,.12); }
     .toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background: rgba(20,24,31,.9); border:1px solid rgba(255,255,255,.1); padding:.6rem .8rem; border-radius: 10px; font-size:.9rem; display:none; z-index: 10; }
-    .hint { opacity:.7; font-size:.86rem; padding:.25rem .5rem; }
   </style>
 </head>
 <body>
   <div id="app">
     <header>
-      <h1>360 Image Visualizer</h1>
+      <h1>360 Viewer</h1>
       <div class="spacer"></div>
-      <div class="row">
-        <input id="urlInput" class="input" type="url" placeholder="Cole a URL de uma imagem 360 (equiretangular)" />
-        <button id="loadUrlBtn" class="btn">Carregar URL</button>
-        <label for="fileInput" class="btn" title="Carregar arquivo local">Carregar arquivo…</label>
-        <input id="fileInput" type="file" accept="image/*" style="display:none" />
-        <button id="gyroBtn" class="btn" title="Usar giroscópio do celular">Ativar Giro</button>
-        <button id="resetBtn" class="btn" title="Recentrar visão">Recentrar</button>
-      </div>
+      <input id="urlInput" class="input" type="url" placeholder="Cole a URL de uma imagem 360 (equiretangular)" />
+      <button id="loadUrlBtn" class="btn">Carregar URL</button>
+      <label for="fileInput" class="btn" title="Carregar arquivo local">Carregar arquivo…</label>
+      <input id="fileInput" type="file" accept="image/*" style="display:none" />
+      <button id="gyroBtn" class="btn" title="Usar giroscópio do celular">Ativar Giro</button>
+      <button id="resetBtn" class="btn" title="Recentrar visão">Recentrar</button>
     </header>
     <div id="viewer"></div>
   </div>
   <div id="dropzone"><p>Solte uma imagem 360 aqui</p></div>
   <div id="toast" class="toast"></div>
 
-  <!-- Versão ES Modules do three.js (r159+) -->
-  <script type="module">
-    import * as THREE from 'https://unpkg.com/three@0.159.0/build/three.module.js';
-    import { OrbitControls } from 'https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js';
-    import { DeviceOrientationControls } from 'https://unpkg.com/three@0.159.0/examples/jsm/controls/DeviceOrientationControls.js';
+  <!-- Dependências UMD (sem bundler) -->
+  <script src="https://cdn.jsdelivr.net/npm/uevent@2/browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/photo-sphere-viewer@5/dist/photo-sphere-viewer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/gyroscope-plugin@5/dist/index.umd.js"></script>
 
-    // --- Basic THREE setup ---
-    const viewer = document.getElementById('viewer');
+  <script>
     const dropzone = document.getElementById('dropzone');
     const toast = document.getElementById('toast');
+    const container = document.getElementById('viewer');
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, 2, 0.1, 1100);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    viewer.appendChild(renderer.domElement);
-
-    // Sphere (we look from INSIDE it)
-    const geometry = new THREE.SphereGeometry(500, 60, 40);
-    geometry.scale(-1, 1, 1); // invert the sphere to face inward
-    let material = new THREE.MeshBasicMaterial({ color: 0x222222 });
-    let sphere = new THREE.Mesh(geometry, material);
-    scene.add(sphere);
-
-    // Placeholder inicial (gradiente + texto) para não ficar preto
-    function makePlaceholderTexture() {
+    // Placeholder equiretangular gerado em runtime
+    function placeholderDataURL(){
       const c = document.createElement('canvas');
-      c.width = 4096; c.height = 2048; // equiretangular
+      c.width = 4096; c.height = 2048;
       const ctx = c.getContext('2d');
       const g = ctx.createLinearGradient(0,0,0,c.height);
-      g.addColorStop(0,'#0b0f14');
-      g.addColorStop(1,'#1b2838');
+      g.addColorStop(0,'#0b0f14'); g.addColorStop(1,'#1b2838');
       ctx.fillStyle = g; ctx.fillRect(0,0,c.width,c.height);
       ctx.fillStyle = 'rgba(255,255,255,.08)';
-      for (let x=0; x<c.width; x+=64) { ctx.fillRect(x,0,1,c.height); }
-      for (let y=0; y<c.height; y+=64) { ctx.fillRect(0,y,c.width,1); }
-      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      for (let x=0; x<c.width; x+=64) ctx.fillRect(x,0,1,c.height);
+      for (let y=0; y<c.height; y+=64) ctx.fillRect(0,y,c.width,1);
+      ctx.fillStyle = 'rgba(255,255,255,.9)';
       ctx.font = 'bold 96px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Arraste para olhar', c.width/2, c.height/2 - 40);
       ctx.font = '48px system-ui, sans-serif';
       ctx.fillText('Carregue um arquivo ou cole uma URL', c.width/2, c.height/2 + 30);
-      const tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.minFilter = THREE.LinearFilter;
-      tex.magFilter = THREE.LinearFilter;
-      return tex;
-    }
-    material.map = makePlaceholderTexture();
-    material.needsUpdate = true;
-
-    // Controls: mouse/touch drag por padrão
-    const orbit = new OrbitControls(camera, renderer.domElement);
-    orbit.enableDamping = true;
-    orbit.enableZoom = false; // panorama puro
-    orbit.rotateSpeed = -0.3; // direção natural do arrasto
-
-    // Device Orientation controls (criados sob demanda)
-    let deviceControls = null;
-    let gyroActive = false;
-
-    // Posição inicial levemente fora do centro
-    camera.position.set(0.1, 0, 0.1);
-
-    // Resize handler
-    function resize() {
-      const header = document.querySelector('header');
-      const w = viewer.clientWidth || window.innerWidth;
-      const h = (window.innerHeight - (header ? header.offsetHeight : 0));
-      renderer.setSize(w, h);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-    }
-    window.addEventListener('resize', resize);
-
-    // Toast
-    let toastTimer = null;
-    function showToast(msg, ms = 2200) {
-      toast.textContent = msg;
-      toast.style.display = 'block';
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.style.display = 'none', ms);
+      return c.toDataURL('image/png');
     }
 
-    // Drag & Drop overlay
+    // Inicializa o viewer do Photo Sphere Viewer
+    let gyroPlugin = null;
+    const Viewer = window.PhotoSphereViewer?.Viewer;
+    const GyroNS = window.PhotoSphereViewerGyroscopePlugin || window.PhotoSphereViewer; // fallback de namespace
+    const GyroscopePlugin = GyroNS && (GyroNS.GyroscopePlugin || GyroNS.default || GyroNS);
+
+    const psv = new Viewer({
+      container,
+      panorama: placeholderDataURL(),
+      touchmoveTwoFingers: false,
+      mousewheel: false,
+      defaultZoomLvl: 50,
+      caption: 'Carregue uma imagem 360 e arraste para explorar',
+      navbar: [
+        'zoom', 'move', 'fullscreen', 'autorotate'
+      ],
+      plugins: GyroscopePlugin ? [ [ GyroscopePlugin, { absolutePosition: true } ] ] : []
+    });
+
+    psv.once('ready', () => showToast('Pronto! Use o topo para carregar sua imagem.'));
+
+    // Obtém instância do plugin de giroscópio (se disponível)
+    psv.on('plugins-loaded', () => {
+      try {
+        gyroPlugin = psv.getPlugin(GyroscopePlugin);
+      } catch (e) { gyroPlugin = null; }
+    });
+
+    // Helpers UI
+    function showToast(msg, ms = 2200){
+      toast.textContent = msg; toast.style.display = 'block';
+      clearTimeout(showToast._t); showToast._t = setTimeout(()=> toast.style.display='none', ms);
+    }
+
+    function loadFromURL(url){
+      if (!url) return;
+      psv.setPanorama(url).then(()=> showToast('Panorama carregado!')).catch((e)=>{
+        console.error(e); showToast('Falha ao carregar URL. Verifique o link e CORS.');
+      });
+    }
+
+    function loadFromFile(file){
+      const objectURL = URL.createObjectURL(file);
+      psv.setPanorama(objectURL).then(()=>{
+        showToast('Panorama carregado!');
+        // o PSV faz cache interno, desreferencie depois
+        setTimeout(()=> URL.revokeObjectURL(objectURL), 10000);
+      }).catch((e)=>{ console.error(e); showToast('Não foi possível ler o arquivo.'); });
+    }
+
+    // Drag & Drop
     ['dragenter','dragover'].forEach(ev => document.addEventListener(ev, e => {
-      e.preventDefault();
-      dropzone.style.display = 'grid';
+      e.preventDefault(); dropzone.style.display = 'grid';
     }));
     ['dragleave','drop'].forEach(ev => document.addEventListener(ev, e => {
-      e.preventDefault();
-      if (ev === 'drop') return;
-      dropzone.style.display = 'none';
+      e.preventDefault(); if (ev === 'drop') return; dropzone.style.display = 'none';
     }));
     document.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropzone.style.display = 'none';
+      e.preventDefault(); dropzone.style.display = 'none';
       const file = e.dataTransfer.files && e.dataTransfer.files[0];
       if (file) loadFromFile(file);
     });
 
-    // Image loading
-    const loader = new THREE.TextureLoader();
-    loader.crossOrigin = 'anonymous';
-
-    function setTexture(tex) {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.minFilter = THREE.LinearFilter;
-      tex.magFilter = THREE.LinearFilter;
-      if (material.map) material.map.dispose();
-      material.map = tex;
-      material.needsUpdate = true;
-      showToast('Panorama carregado!');
-    }
-
-    function loadFromURL(url) {
-      if (!url) return;
-      loader.load(url, setTexture, undefined, (err) => {
-        console.error(err);
-        showToast('Falha ao carregar URL. Verifique o link e CORS.');
-      });
-    }
-
-    function loadFromFile(file) {
-      const objectURL = URL.createObjectURL(file);
-      loader.load(objectURL, (tex) => {
-        setTexture(tex);
-        URL.revokeObjectURL(objectURL);
-      }, undefined, (err) => {
-        console.error(err);
-        showToast('Não foi possível ler o arquivo.');
-      });
-    }
-
-    // UI wiring
-    document.getElementById('loadUrlBtn').addEventListener('click', () => {
+    // Botões
+    document.getElementById('loadUrlBtn').addEventListener('click', ()=>{
       const url = document.getElementById('urlInput').value.trim();
       loadFromURL(url);
     });
-
-    document.getElementById('fileInput').addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) loadFromFile(file);
-      e.target.value = '';
+    document.getElementById('fileInput').addEventListener('change', (e)=>{
+      const f = e.target.files[0]; if (f) loadFromFile(f); e.target.value='';
     });
-
-    document.getElementById('resetBtn').addEventListener('click', () => {
-      orbit.reset();
-      if (deviceControls && gyroActive) deviceControls.connect();
+    document.getElementById('resetBtn').addEventListener('click', ()=>{
+      psv.rotate({ yaw: 0, pitch: 0 }, 500);
     });
-
-    document.getElementById('gyroBtn').addEventListener('click', async () => {
+    document.getElementById('gyroBtn').addEventListener('click', async ()=>{
+      if (!gyroPlugin){ showToast('Giroscópio indisponível neste navegador.'); return; }
       try {
-        // iOS 13+: pode exigir permissão para sensores
-        const requesters = [];
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-          requesters.push(DeviceOrientationEvent.requestPermission());
-        }
-        if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-          requesters.push(DeviceMotionEvent.requestPermission());
-        }
-        if (requesters.length) {
-          const results = await Promise.allSettled(requesters);
-          const granted = results.some(r => r.status === 'fulfilled' && r.value === 'granted');
-          if (!granted) { showToast('Permissão negada para sensores.'); return; }
-        }
-        if (!deviceControls) {
-          deviceControls = new DeviceOrientationControls(camera);
-        }
-        gyroActive = !gyroActive;
-        if (gyroActive) {
-          deviceControls.connect();
-          showToast('Giroscópio ativado.');
-          document.getElementById('gyroBtn').textContent = 'Desativar Giro';
-        } else {
-          deviceControls.disconnect();
-          showToast('Giroscópio desativado.');
-          document.getElementById('gyroBtn').textContent = 'Ativar Giro';
-        }
-      } catch (e) {
-        console.error(e);
-        showToast('Seu navegador não suportou o uso do giroscópio.');
-      }
+        if (!gyroPlugin.isEnabled()){ await gyroPlugin.start(); showToast('Giroscópio ativado.'); }
+        else { gyroPlugin.stop(); showToast('Giroscópio desativado.'); }
+      } catch(e){ console.error(e); showToast('Permissão negada ou não suportado.'); }
     });
 
-    // Allow passing a ?src= URL param
+    // Query param ?src=
     (function initFromQuery(){
       const params = new URLSearchParams(location.search);
       const src = params.get('src');
-      if (src) {
-        document.getElementById('urlInput').value = src;
-        loadFromURL(src);
-      }
+      if (src) { document.getElementById('urlInput').value = src; loadFromURL(src); }
     })();
-
-    // Render loop
-    function animate() {
-      requestAnimationFrame(animate);
-      orbit.update();
-      if (deviceControls && gyroActive) deviceControls.update();
-      renderer.render(scene, camera);
-    }
-
-    // First layout + start
-    resize();
-    animate();
-
-    // Dicas
-    setTimeout(() => {
-      showToast('Dica: URLs externas precisam permitir CORS. Arquivos locais funcionam bem.');
-    }, 700);
   </script>
 </body>
 </html>
