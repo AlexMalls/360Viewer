@@ -92,6 +92,7 @@
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js";
+import { DeviceOrientationControls } from "https://unpkg.com/three@0.159.0/examples/jsm/controls/DeviceOrientationControls.js";
 
 const container=document.getElementById('viewer');
 const renderer=new THREE.WebGLRenderer({antialias:true});
@@ -103,9 +104,11 @@ const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,2000);
 camera.position.set(0,0,0.1);
 
-const controls=new OrbitControls(camera,renderer.domElement);
-controls.enableDamping=true; controls.enablePan=false;
-controls.minDistance=0.05; controls.maxDistance=10;
+const orbitControls=new OrbitControls(camera,renderer.domElement);
+orbitControls.enableDamping=true; orbitControls.enablePan=false;
+orbitControls.minDistance=0.05; orbitControls.maxDistance=10;
+
+let deviceControls=null;
 
 let sphereMesh=null, skyboxMesh=null, cubeTex=null;
 
@@ -140,8 +143,13 @@ if(n.includes("negz")||n.includes("nz"))return"negz";return null;}
 function resize(){const w=window.innerWidth,h=window.innerHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);renderOnce();}
 window.addEventListener('resize',resize);
 
-function renderOnce(){controls.update();renderer.render(scene,camera);}
-(function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);})();
+function renderOnce(){orbitControls.update();renderer.render(scene,camera);}
+(function animate(){
+  requestAnimationFrame(animate);
+  orbitControls.update();
+  deviceControls?.update();
+  renderer.render(scene,camera);
+})();
 
 // UI
 const DEMO_EQ_URL="https://threejs.org/examples/textures/2294472375_24a3b8ef46_o.jpg";
@@ -162,6 +170,27 @@ const drop=document.getElementById("drop");
 container.addEventListener("drop",e=>{const f=[...e.dataTransfer.files];if(f.length===1)loadEquirect(f[0]);else if(f.length>1)loadCubemap(f);});
 
 loadEquirect(DEMO_EQ_URL); resize();
+
+function enableDeviceOrientation(){
+  if(deviceControls) return;
+    deviceControls = new DeviceOrientationControls(camera);
+    deviceControls.connect();
+    orbitControls.enabled=false;
+  }
+
+if('DeviceOrientationEvent' in window && /Mobi/.test(navigator.userAgent)){
+  const initGyro=()=>{
+    if(typeof DeviceOrientationEvent.requestPermission==='function'){
+      DeviceOrientationEvent.requestPermission().then(res=>{
+        if(res==='granted')enableDeviceOrientation();
+      }).catch(()=>{});
+    }else{
+      enableDeviceOrientation();
+    }
+  };
+  window.addEventListener('click',initGyro,{once:true});
+  window.addEventListener('touchend',initGyro,{once:true});
+}
 </script>
 </body>
 </html>
