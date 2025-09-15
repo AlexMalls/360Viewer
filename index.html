@@ -1,163 +1,310 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<!doctype html>
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>360 Viewer – Photo Sphere Viewer</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photo-sphere-viewer@5/dist/photo-sphere-viewer.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/gyroscope-plugin@5/dist/index.css">
+  <title>Visualizador 360 — Cubemap & Equiretangular (Three.js)</title>
   <style>
-    * { box-sizing: border-box; }
-    html, body { height:100%; margin:0; background:#0b0f14; color:#e6edf3; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; }
-    #app { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr; }
-    header { display:flex; gap:.5rem; align-items:center; padding:.6rem .8rem; background: linear-gradient(180deg, rgba(255,255,255,.04), transparent); border-bottom: 1px solid rgba(255,255,255,.08); }
-    header h1 { margin:0; font-size: 1rem; letter-spacing:.2px; font-weight:600; opacity:.9 }
-    header .spacer { flex:1 }
-    .btn { appearance:none; border:1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color:#e6edf3; padding:.45rem .7rem; border-radius: 999px; cursor:pointer; font-weight:600; font-size:.9rem; transition: .15s ease; }
-    .btn:hover { background: rgba(255,255,255,.12); }
-    .input { border:1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color:#e6edf3; padding:.45rem .6rem; border-radius: 10px; min-width: 220px; }
-    #viewer { position: relative; background:#0b0f14; }
-    #dropzone { position:absolute; inset:0; display:none; place-items:center; background: rgba(35, 131, 226, .12); outline: 2px dashed rgba(35,131,226,.8); outline-offset: -12px; z-index: 5; }
-    #dropzone p { background: rgba(11,15,20,.8); padding: .6rem .8rem; border-radius: 12px; border:1px solid rgba(255,255,255,.12); }
-    .toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background: rgba(20,24,31,.9); border:1px solid rgba(255,255,255,.1); padding:.6rem .8rem; border-radius: 10px; font-size:.9rem; display:none; z-index: 10; }
+    :root { --bg:#0b0b12; --ink:#e8e8ef; --muted:#9aa0a6; --card:#14141f; --acc:#6ae3ff; }
+    html,body { height:100%; margin:0; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans"; }
+    .app { display:grid; grid-template-rows:auto 1fr; height:100%; }
+    header { display:flex; gap:.75rem; align-items:center; padding:.75rem 1rem; background:linear-gradient(180deg,#12121b,#0b0b12); position:sticky; top:0; z-index:5; border-bottom:1px solid #1f2330;}
+    header h1 { font-size:14px; margin:0; letter-spacing:.2px; color:var(--muted);}
+    .controls { display:flex; flex-wrap:wrap; gap:.5rem 1rem; align-items:center; margin-left:auto;}
+    .btn, .file { appearance:none; border:1px solid #2b3142; background:var(--card); color:var(--ink); border-radius:10px; padding:.55rem .8rem; cursor:pointer; }
+    .btn:hover { border-color:#3a4157;}
+    .seg { display:inline-flex; background:var(--card); border:1px solid #2b3142; border-radius:10px; overflow:hidden;}
+    .seg input { display:none; }
+    .seg label { padding:.5rem .75rem; cursor:pointer; color:var(--muted); border-right:1px solid #2b3142; }
+    .seg label:last-child { border-right:0; }
+    .seg input:checked + label { background:#1a1f2d; color:var(--ink); }
+    #viewer { position:relative; }
+    canvas { display:block; width:100%; height:100%; }
+    .hint { position:absolute; left:12px; bottom:12px; color:var(--muted); background:rgba(20,20,31,.5); padding:.4rem .55rem; border:1px solid #2b3142; border-radius:8px; backdrop-filter: blur(6px); }
+    .drop { position:absolute; inset:0; border:2px dashed #2b3142; border-radius:16px; display:none; place-items:center; color:var(--muted); background:rgba(0,0,0,.15); }
+    .drop.show { display:grid; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background:#111522; padding:0 .35rem; border-radius:6px; border:1px solid #2b3142; color:#cfe1ff;}
   </style>
 </head>
 <body>
-  <div id="app">
-    <header>
-      <h1>360 Viewer</h1>
-      <div class="spacer"></div>
-      <input id="urlInput" class="input" type="url" placeholder="Cole a URL de uma imagem 360 (equiretangular)" />
-      <button id="loadUrlBtn" class="btn">Carregar URL</button>
-      <label for="fileInput" class="btn" title="Carregar arquivo local">Carregar arquivo…</label>
-      <input id="fileInput" type="file" accept="image/*" style="display:none" />
-      <button id="gyroBtn" class="btn" title="Usar giroscópio do celular">Ativar Giro</button>
-      <button id="resetBtn" class="btn" title="Recentrar visão">Recentrar</button>
-    </header>
-    <div id="viewer"></div>
+<div class="app">
+  <header>
+    <h1>Visualizador 360</h1>
+
+    <div class="seg" role="tablist" aria-label="Modo">
+      <input type="radio" id="m-eq" name="mode" value="equirect" checked>
+      <label for="m-eq" title="Uma imagem 2:1">Equiretangular</label>
+      <input type="radio" id="m-cm" name="mode" value="cubemap">
+      <label for="m-cm" title="Seis faces: posx/negx/posy/negy/posz/negz">Cubemap</label>
+    </div>
+
+    <input class="file" id="fileEq" type="file" accept="image/*" title="Carregar imagem equiretangular (2:1)" />
+    <input class="file" id="fileCm" type="file" accept="image/*" multiple title="Carregar 6 imagens do cubemap" />
+
+    <button class="btn" id="btnDemoEq" title="Carregar demo equiretangular">Demo EQ</button>
+    <button class="btn" id="btnDemoCm" title="Carregar demo cubemap">Demo CM</button>
+    <button class="btn" id="btnFS" title="Tela cheia (F)">Fullscreen</button>
+    <div class="controls"></div>
+  </header>
+
+  <div id="viewer">
+    <div class="drop" id="drop">
+      <div>
+        <div style="font-size:15px; margin-bottom:.25rem;">Solte arquivos aqui</div>
+        <div style="font-size:12px;color:#b9beca">Equiretangular: 1 imagem 2:1 • Cubemap: 6 imagens com nomes posx/negx/posy/negy/posz/negz</div>
+      </div>
+    </div>
+    <div class="hint">Arraste para girar • Role para dar zoom • <span class="kbd">F</span> tela cheia</div>
   </div>
-  <div id="dropzone"><p>Solte uma imagem 360 aqui</p></div>
-  <div id="toast" class="toast"></div>
+</div>
 
-  <!-- Dependências UMD (sem bundler) -->
-  <script src="https://cdn.jsdelivr.net/npm/uevent@2/browser.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/photo-sphere-viewer@5/dist/photo-sphere-viewer.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/gyroscope-plugin@5/dist/index.umd.js"></script>
+<!-- Three.js ESM (fixe a versão se quiser estabilidade) -->
+<script type="module">
+  import * as THREE from "https://unpkg.com/three@0.159.0/build/three.module.js";
+  import { OrbitControls } from "https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js";
 
-  <script>
-    const dropzone = document.getElementById('dropzone');
-    const toast = document.getElementById('toast');
-    const container = document.getElementById('viewer');
+  // --- Básico de cena ---
+  const container = document.getElementById('viewer');
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight - document.querySelector('header').offsetHeight);
+  container.appendChild(renderer.domElement);
 
-    // Placeholder equiretangular gerado em runtime
-    function placeholderDataURL(){
-      const c = document.createElement('canvas');
-      c.width = 4096; c.height = 2048;
-      const ctx = c.getContext('2d');
-      const g = ctx.createLinearGradient(0,0,0,c.height);
-      g.addColorStop(0,'#0b0f14'); g.addColorStop(1,'#1b2838');
-      ctx.fillStyle = g; ctx.fillRect(0,0,c.width,c.height);
-      ctx.fillStyle = 'rgba(255,255,255,.08)';
-      for (let x=0; x<c.width; x+=64) ctx.fillRect(x,0,1,c.height);
-      for (let y=0; y<c.height; y+=64) ctx.fillRect(0,y,c.width,1);
-      ctx.fillStyle = 'rgba(255,255,255,.9)';
-      ctx.font = 'bold 96px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('Arraste para olhar', c.width/2, c.height/2 - 40);
-      ctx.font = '48px system-ui, sans-serif';
-      ctx.fillText('Carregue um arquivo ou cole uma URL', c.width/2, c.height/2 + 30);
-      return c.toDataURL('image/png');
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, renderer.domElement.clientWidth / renderer.domElement.clientHeight, 0.1, 2000);
+  camera.position.set(0,0,0.1);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.rotateSpeed = 0.35;
+  controls.zoomSpeed = 0.6;
+  controls.enablePan = false;
+  controls.minDistance = 0.05;
+  controls.maxDistance = 10;
+
+  // --- Estado ---
+  let currentMode = "equirect";     // "equirect" | "cubemap"
+  let sphereMesh = null;            // para equiretangular
+  let skyboxMesh = null;            // alternativa ao background, mantemos mesh por flexibilidade
+  let cubeTex = null;
+
+  // --- Helpers de limpeza ---
+  function disposeIf(obj) {
+    if (!obj) return;
+    if (obj.isMesh) {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        else obj.material.dispose();
+      }
+      scene.remove(obj);
+    }
+  }
+  function clearBackground() {
+    if (scene.background && scene.background.dispose) scene.background.dispose();
+    scene.background = null;
+  }
+
+  // --- Equiretangular: usa esfera invertida + textura 2:1 ---
+  async function loadEquirect(fileOrUrl) {
+    currentMode = "equirect";
+    document.getElementById('m-eq').checked = true;
+
+    // limpar cena
+    disposeIf(skyboxMesh);
+    skyboxMesh = null;
+    if (cubeTex) { cubeTex.dispose(); cubeTex = null; }
+    clearBackground();
+
+    // esfera
+    if (!sphereMesh) {
+      const geom = new THREE.SphereGeometry(500, 64, 64);
+      geom.scale(-1, 1, 1); // inverter para ver por dentro
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      sphereMesh = new THREE.Mesh(geom, mat);
+      scene.add(sphereMesh);
     }
 
-    // Inicializa o viewer do Photo Sphere Viewer
-    let gyroPlugin = null;
-    const Viewer = window.PhotoSphereViewer?.Viewer;
-    const GyroNS = window.PhotoSphereViewerGyroscopePlugin || window.PhotoSphereViewer; // fallback de namespace
-    const GyroscopePlugin = GyroNS && (GyroNS.GyroscopePlugin || GyroNS.default || GyroNS);
+    const texture = await loadTexture(fileOrUrl);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    sphereMesh.material.map = texture;
+    sphereMesh.material.needsUpdate = true;
+    renderOnce();
+  }
 
-    const psv = new Viewer({
-      container,
-      panorama: placeholderDataURL(),
-      touchmoveTwoFingers: false,
-      mousewheel: false,
-      defaultZoomLvl: 50,
-      caption: 'Carregue uma imagem 360 e arraste para explorar',
-      navbar: [
-        'zoom', 'move', 'fullscreen', 'autorotate'
-      ],
-      plugins: GyroscopePlugin ? [ [ GyroscopePlugin, { absolutePosition: true } ] ] : []
-    });
+  // --- Cubemap: 6 faces (posx,negx,posy,negy,posz,negz) ---
+  async function loadCubemap(filesOrUrls) {
+    currentMode = "cubemap";
+    document.getElementById('m-cm').checked = true;
 
-    psv.once('ready', () => showToast('Pronto! Use o topo para carregar sua imagem.'));
+    // limpar cena
+    disposeIf(sphereMesh);
+    sphereMesh = null;
+    clearBackground();
 
-    // Obtém instância do plugin de giroscópio (se disponível)
-    psv.on('plugins-loaded', () => {
-      try {
-        gyroPlugin = psv.getPlugin(GyroscopePlugin);
-      } catch (e) { gyroPlugin = null; }
-    });
+    // ordenar/match dos 6 arquivos por nome
+    const faceMap = { posx:null, negx:null, posy:null, negy:null, posz:null, negz:null };
+    const names = Array.isArray(filesOrUrls) ? filesOrUrls : [filesOrUrls];
 
-    // Helpers UI
-    function showToast(msg, ms = 2200){
-      toast.textContent = msg; toast.style.display = 'block';
-      clearTimeout(showToast._t); showToast._t = setTimeout(()=> toast.style.display='none', ms);
+    // Se vierem File objects
+    if (names[0] instanceof File) {
+      for (const f of names) {
+        const key = keyFromName(f.name);
+        if (key && key in faceMap) faceMap[key] = URL.createObjectURL(f);
+      }
+    } else {
+      // URLs já categorizadas {posx:..., ...} ou array simples com nomes no path
+      for (const it of names) {
+        const key = typeof it === 'string' ? keyFromName(it) : null;
+        if (key && key in faceMap) faceMap[key] = it;
+        // também aceitar objeto {posx: '...', ...}
+        if (typeof it === 'object') Object.assign(faceMap, it);
+      }
     }
 
-    function loadFromURL(url){
-      if (!url) return;
-      psv.setPanorama(url).then(()=> showToast('Panorama carregado!')).catch((e)=>{
-        console.error(e); showToast('Falha ao carregar URL. Verifique o link e CORS.');
+    // checar se temos todas as faces
+    if (Object.values(faceMap).some(v => !v)) {
+      alert("Cubemap incompleto. Garanta posx, negx, posy, negy, posz, negz nos nomes dos arquivos.");
+      return;
+    }
+
+    // carregar como CubeTexture
+    if (cubeTex) { cubeTex.dispose(); cubeTex = null; }
+    const loader = new THREE.CubeTextureLoader();
+    cubeTex = await new Promise((resolve, reject) => {
+      loader.load(
+        [faceMap.posx, faceMap.negx, faceMap.posy, faceMap.negy, faceMap.posz, faceMap.negz],
+        tex => { tex.colorSpace = THREE.SRGBColorSpace; resolve(tex); },
+        undefined,
+        err => reject(err)
+      );
+    });
+
+    // duas opções: (A) scene.background = cubeTex; (B) mesh “skybox” BackSide
+    // Usaremos mesh para permitir efeitos futuros; visual é idêntico para olhar ao redor.
+    if (!skyboxMesh) {
+      const box = new THREE.BoxGeometry(1000, 1000, 1000);
+      const shader = THREE.ShaderLib["cube"];
+      const uni = THREE.UniformsUtils.clone(shader.uniforms);
+      uni["tCube"].value = null;
+      const mat = new THREE.ShaderMaterial({
+        fragmentShader: shader.fragmentShader,
+        vertexShader: shader.vertexShader,
+        uniforms: uni,
+        depthWrite: false,
+        side: THREE.BackSide
       });
+      skyboxMesh = new THREE.Mesh(box, mat);
+      scene.add(skyboxMesh);
     }
+    skyboxMesh.material.uniforms.tCube.value = cubeTex;
+    renderOnce();
+  }
 
-    function loadFromFile(file){
-      const objectURL = URL.createObjectURL(file);
-      psv.setPanorama(objectURL).then(()=>{
-        showToast('Panorama carregado!');
-        // o PSV faz cache interno, desreferencie depois
-        setTimeout(()=> URL.revokeObjectURL(objectURL), 10000);
-      }).catch((e)=>{ console.error(e); showToast('Não foi possível ler o arquivo.'); });
-    }
+  // --- Utilitários ---
+  function keyFromName(name) {
+    const n = name.toLowerCase();
+    if (n.includes("posx") || n.includes("px")) return "posx";
+    if (n.includes("negx") || n.includes("nx")) return "negx";
+    if (n.includes("posy") || n.includes("py")) return "posy";
+    if (n.includes("negy") || n.includes("ny")) return "negy";
+    if (n.includes("posz") || n.includes("pz")) return "posz";
+    if (n.includes("negz") || n.includes("nz")) return "negz";
+    return null;
+  }
 
-    // Drag & Drop
-    ['dragenter','dragover'].forEach(ev => document.addEventListener(ev, e => {
-      e.preventDefault(); dropzone.style.display = 'grid';
-    }));
-    ['dragleave','drop'].forEach(ev => document.addEventListener(ev, e => {
-      e.preventDefault(); if (ev === 'drop') return; dropzone.style.display = 'none';
-    }));
-    document.addEventListener('drop', (e) => {
-      e.preventDefault(); dropzone.style.display = 'none';
-      const file = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (file) loadFromFile(file);
+  function loadTexture(fileOrUrl) {
+    const loader = new THREE.TextureLoader();
+    return new Promise((resolve, reject) => {
+      const url = fileOrUrl instanceof File ? URL.createObjectURL(fileOrUrl) : fileOrUrl;
+      loader.load(url, tex => resolve(tex), undefined, err => reject(err));
     });
+  }
 
-    // Botões
-    document.getElementById('loadUrlBtn').addEventListener('click', ()=>{
-      const url = document.getElementById('urlInput').value.trim();
-      loadFromURL(url);
-    });
-    document.getElementById('fileInput').addEventListener('change', (e)=>{
-      const f = e.target.files[0]; if (f) loadFromFile(f); e.target.value='';
-    });
-    document.getElementById('resetBtn').addEventListener('click', ()=>{
-      psv.rotate({ yaw: 0, pitch: 0 }, 500);
-    });
-    document.getElementById('gyroBtn').addEventListener('click', async ()=>{
-      if (!gyroPlugin){ showToast('Giroscópio indisponível neste navegador.'); return; }
-      try {
-        if (!gyroPlugin.isEnabled()){ await gyroPlugin.start(); showToast('Giroscópio ativado.'); }
-        else { gyroPlugin.stop(); showToast('Giroscópio desativado.'); }
-      } catch(e){ console.error(e); showToast('Permissão negada ou não suportado.'); }
-    });
+  function resize() {
+    const hHeader = document.querySelector('header').offsetHeight;
+    const w = window.innerWidth, h = window.innerHeight - hHeader;
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+    renderOnce();
+  }
+  window.addEventListener('resize', resize);
 
-    // Query param ?src=
-    (function initFromQuery(){
-      const params = new URLSearchParams(location.search);
-      const src = params.get('src');
-      if (src) { document.getElementById('urlInput').value = src; loadFromURL(src); }
-    })();
-  </script>
+  function renderOnce() {
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  // loop de animação leve (damping do OrbitControls)
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // --- UI ---
+  const rEq = document.getElementById('m-eq');
+  const rCm = document.getElementById('m-cm');
+  const fileEq = document.getElementById('fileEq');
+  const fileCm = document.getElementById('fileCm');
+  const btnFS = document.getElementById('btnFS');
+  const btnDemoEq = document.getElementById('btnDemoEq');
+  const btnDemoCm = document.getElementById('btnDemoCm');
+
+  rEq.addEventListener('change', () => { if (rEq.checked) loadEquirect(DEMO_EQ_URL); });
+  rCm.addEventListener('change', () => { if (rCm.checked) loadCubemap(DEMO_CM_URLS); });
+
+  fileEq.addEventListener('change', ev => {
+    if (ev.target.files && ev.target.files[0]) loadEquirect(ev.target.files[0]);
+  });
+  fileCm.addEventListener('change', ev => {
+    if (ev.target.files && ev.target.files.length) loadCubemap(Array.from(ev.target.files));
+  });
+
+  btnFS.addEventListener('click', toggleFullscreen);
+  document.addEventListener('keydown', (e) => { if ((e.key === 'f' || e.key === 'F')) toggleFullscreen(); });
+
+  function toggleFullscreen() {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) el.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+
+  // --- Drag & drop ---
+  const drop = document.getElementById('drop');
+  ['dragenter','dragover'].forEach(ev =>
+    container.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('show'); })
+  );
+  ['dragleave','drop'].forEach(ev =>
+    container.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('show'); })
+  );
+  container.addEventListener('drop', e => {
+    const files = Array.from(e.dataTransfer.files || []);
+    if (!files.length) return;
+    if (files.length === 1) loadEquirect(files[0]);
+    else loadCubemap(files);
+  });
+
+  // --- Demos (imagens públicas de exemplo dos exemplos do Three/recursos equivalentes) ---
+  // Para sua produção, troque essas URLs pelos seus assets.
+  const DEMO_EQ_URL = "https://threejs.org/examples/textures/2294472375_24a3b8ef46_o.jpg"; // panorama do exemplo equirectangular
+  // Para cubemap: usaremos o set "Park" do clássico demo educacional (ou substitua pelos seus arquivos)
+  const DEMO_CM_URLS = {
+    posx: "https://threejs.org/examples/textures/cube/Bridge2/posx.jpg",
+    negx: "https://threejs.org/examples/textures/cube/Bridge2/negx.jpg",
+    posy: "https://threejs.org/examples/textures/cube/Bridge2/posy.jpg",
+    negy: "https://threejs.org/examples/textures/cube/Bridge2/negy.jpg",
+    posz: "https://threejs.org/examples/textures/cube/Bridge2/posz.jpg",
+    negz: "https://threejs.org/examples/textures/cube/Bridge2/negz.jpg"
+  };
+
+  btnDemoEq.addEventListener('click', () => loadEquirect(DEMO_EQ_URL));
+  btnDemoCm.addEventListener('click', () => loadCubemap(DEMO_CM_URLS));
+
+  // inicial
+  loadEquirect(DEMO_EQ_URL);
+  resize();
+</script>
 </body>
 </html>
