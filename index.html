@@ -6,60 +6,81 @@
   <title>Visualizador 360 — Cubemap & Equiretangular (Three.js)</title>
   <style>
     :root { --bg:#0b0b12; --ink:#e8e8ef; --muted:#9aa0a6; --card:#14141f; --acc:#6ae3ff; }
-    html,body { height:100%; margin:0; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans"; }
-    .app { display:grid; grid-template-rows:auto 1fr; height:100%; }
-    header { display:flex; gap:.75rem; align-items:center; padding:.75rem 1rem; background:linear-gradient(180deg,#12121b,#0b0b12); position:sticky; top:0; z-index:5; border-bottom:1px solid #1f2330;}
+    html,body {
+      margin:0; padding:0; width:100%; height:100%;
+      background:var(--bg); color:var(--ink);
+      font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans","Liberation Sans";
+      overflow:hidden;
+    }
+    .app { width:100%; height:100%; }
+    header {
+      position:absolute; top:0; left:0; right:0;
+      display:flex; gap:.75rem; align-items:center;
+      padding:.75rem 1rem;
+      background:linear-gradient(180deg,#12121b,#0b0b12cc);
+      z-index:10;
+      border-bottom:1px solid #1f2330;
+    }
     header h1 { font-size:14px; margin:0; letter-spacing:.2px; color:var(--muted);}
     .controls { display:flex; flex-wrap:wrap; gap:.5rem 1rem; align-items:center; margin-left:auto;}
-    .btn, .file { appearance:none; border:1px solid #2b3142; background:var(--card); color:var(--ink); border-radius:10px; padding:.55rem .8rem; cursor:pointer; }
+    .btn, .file {
+      appearance:none; border:1px solid #2b3142; background:var(--card);
+      color:var(--ink); border-radius:10px; padding:.55rem .8rem; cursor:pointer;
+    }
     .btn:hover { border-color:#3a4157;}
     .seg { display:inline-flex; background:var(--card); border:1px solid #2b3142; border-radius:10px; overflow:hidden;}
     .seg input { display:none; }
     .seg label { padding:.5rem .75rem; cursor:pointer; color:var(--muted); border-right:1px solid #2b3142; }
     .seg label:last-child { border-right:0; }
     .seg input:checked + label { background:#1a1f2d; color:var(--ink); }
-    #viewer { position:relative; }
+    #viewer { position:absolute; top:0; left:0; right:0; bottom:0; }
     canvas { display:block; width:100%; height:100%; }
-    .hint { position:absolute; left:12px; bottom:12px; color:var(--muted); background:rgba(20,20,31,.5); padding:.4rem .55rem; border:1px solid #2b3142; border-radius:8px; backdrop-filter: blur(6px); }
-    .drop { position:absolute; inset:0; border:2px dashed #2b3142; border-radius:16px; display:none; place-items:center; color:var(--muted); background:rgba(0,0,0,.15); }
+    .hint {
+      position:absolute; left:12px; bottom:12px;
+      color:var(--muted); background:rgba(20,20,31,.5);
+      padding:.4rem .55rem; border:1px solid #2b3142; border-radius:8px; backdrop-filter: blur(6px);
+      font-size:12px;
+    }
+    .drop {
+      position:absolute; inset:0; border:2px dashed #2b3142; border-radius:16px;
+      display:none; place-items:center; color:var(--muted); background:rgba(0,0,0,.15);
+    }
     .drop.show { display:grid; }
-    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background:#111522; padding:0 .35rem; border-radius:6px; border:1px solid #2b3142; color:#cfe1ff;}
+    .kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      background:#111522; padding:0 .35rem; border-radius:6px; border:1px solid #2b3142; color:#cfe1ff;
+    }
   </style>
 </head>
 <body>
 <div class="app">
   <header>
     <h1>Visualizador 360</h1>
-
-    <div class="seg" role="tablist" aria-label="Modo">
+    <div class="seg">
       <input type="radio" id="m-eq" name="mode" value="equirect" checked>
-      <label for="m-eq" title="Uma imagem 2:1">Equiretangular</label>
+      <label for="m-eq">Equiretangular</label>
       <input type="radio" id="m-cm" name="mode" value="cubemap">
-      <label for="m-cm" title="Seis faces: posx/negx/posy/negy/posz/negz">Cubemap</label>
+      <label for="m-cm">Cubemap</label>
     </div>
-
-    <input class="file" id="fileEq" type="file" accept="image/*" title="Carregar imagem equiretangular (2:1)" />
-    <input class="file" id="fileCm" type="file" accept="image/*" multiple title="Carregar 6 imagens do cubemap" />
-
-    <button class="btn" id="btnDemoEq" title="Carregar demo equiretangular">Demo EQ</button>
-    <button class="btn" id="btnDemoCm" title="Carregar demo cubemap">Demo CM</button>
-    <button class="btn" id="btnFS" title="Tela cheia (F)">Fullscreen</button>
-    <div class="controls"></div>
+    <input class="file" id="fileEq" type="file" accept="image/*" />
+    <input class="file" id="fileCm" type="file" accept="image/*" multiple />
+    <button class="btn" id="btnDemoEq">Demo EQ</button>
+    <button class="btn" id="btnDemoCm">Demo CM</button>
+    <button class="btn" id="btnFS">Fullscreen</button>
   </header>
 
   <div id="viewer">
     <div class="drop" id="drop">
       <div>
         <div style="font-size:15px; margin-bottom:.25rem;">Solte arquivos aqui</div>
-        <div style="font-size:12px;color:#b9beca">Equiretangular: 1 imagem 2:1 • Cubemap: 6 imagens com nomes posx/negx/posy/negy/posz/negz</div>
+        <div style="font-size:12px;color:#b9beca">Equiretangular: 1 imagem 2:1 • Cubemap: 6 imagens posx/negx/posy/negy/posz/negz</div>
       </div>
     </div>
-    <div class="hint">Arraste para girar • Role para dar zoom • <span class="kbd">F</span> tela cheia</div>
+    <div class="hint">Arraste para girar • Pinça/rolagem para zoom • <span class="kbd">F</span> tela cheia</div>
   </div>
 </div>
 
-<!-- Three.js ESM (fixe a versão se quiser estabilidade) -->
-
+<!-- Import map -->
 <script type="importmap">
 {
   "imports": {
@@ -69,252 +90,78 @@
 </script>
 
 <script type="module">
-  import * as THREE from "https://unpkg.com/three@0.159.0/build/three.module.js";
-  import { OrbitControls } from "https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js";
-  
-  // --- Básico de cena ---
-  const container = document.getElementById('viewer');
-  const renderer = new THREE.WebGLRenderer({ antialias:true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight - document.querySelector('header').offsetHeight);
-  container.appendChild(renderer.domElement);
+import * as THREE from "three";
+import { OrbitControls } from "https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js";
 
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(75, renderer.domElement.clientWidth / renderer.domElement.clientHeight, 0.1, 2000);
-  camera.position.set(0,0,0.1);
+const container=document.getElementById('viewer');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+container.appendChild(renderer.domElement);
 
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.rotateSpeed = 0.35;
-  controls.zoomSpeed = 0.6;
-  controls.enablePan = false;
-  controls.minDistance = 0.05;
-  controls.maxDistance = 10;
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,2000);
+camera.position.set(0,0,0.1);
 
-  // --- Estado ---
-  let currentMode = "equirect";     // "equirect" | "cubemap"
-  let sphereMesh = null;            // para equiretangular
-  let skyboxMesh = null;            // alternativa ao background, mantemos mesh por flexibilidade
-  let cubeTex = null;
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.enablePan=false;
+controls.minDistance=0.05; controls.maxDistance=10;
 
-  // --- Helpers de limpeza ---
-  function disposeIf(obj) {
-    if (!obj) return;
-    if (obj.isMesh) {
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material) {
-        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-        else obj.material.dispose();
-      }
-      scene.remove(obj);
-    }
-  }
-  function clearBackground() {
-    if (scene.background && scene.background.dispose) scene.background.dispose();
-    scene.background = null;
-  }
+let sphereMesh=null, skyboxMesh=null, cubeTex=null;
 
-  // --- Equiretangular: usa esfera invertida + textura 2:1 ---
-  async function loadEquirect(fileOrUrl) {
-    currentMode = "equirect";
-    document.getElementById('m-eq').checked = true;
+function disposeIf(obj){if(!obj)return;if(obj.isMesh){obj.geometry?.dispose();if(Array.isArray(obj.material))obj.material.forEach(m=>m.dispose());else obj.material?.dispose();scene.remove(obj);}} 
+function clearBackground(){if(scene.background?.dispose)scene.background.dispose();scene.background=null;}
 
-    // limpar cena
-    disposeIf(skyboxMesh);
-    skyboxMesh = null;
-    if (cubeTex) { cubeTex.dispose(); cubeTex = null; }
-    clearBackground();
+async function loadEquirect(fileOrUrl){
+  disposeIf(skyboxMesh); skyboxMesh=null; if(cubeTex){cubeTex.dispose();cubeTex=null;} clearBackground();
+  if(!sphereMesh){const geom=new THREE.SphereGeometry(500,64,64); geom.scale(-1,1,1); sphereMesh=new THREE.Mesh(geom,new THREE.MeshBasicMaterial()); scene.add(sphereMesh);}
+  const tex=await new THREE.TextureLoader().loadAsync(fileOrUrl instanceof File?URL.createObjectURL(fileOrUrl):fileOrUrl);
+  tex.colorSpace=THREE.SRGBColorSpace; sphereMesh.material.map=tex; sphereMesh.material.needsUpdate=true; renderOnce();
+}
 
-    // esfera
-    if (!sphereMesh) {
-      const geom = new THREE.SphereGeometry(500, 64, 64);
-      geom.scale(-1, 1, 1); // inverter para ver por dentro
-      const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      sphereMesh = new THREE.Mesh(geom, mat);
-      scene.add(sphereMesh);
-    }
+async function loadCubemap(filesOrUrls){
+  disposeIf(sphereMesh); sphereMesh=null; clearBackground();
+  const faceMap={posx:null,negx:null,posy:null,negy:null,posz:null,negz:null};
+  const arr=Array.isArray(filesOrUrls)?filesOrUrls:[filesOrUrls];
+  if(arr[0] instanceof File){for(const f of arr){const k=keyFromName(f.name);if(k)faceMap[k]=URL.createObjectURL(f);}}
+  else if(typeof arr[0]==="object"){Object.assign(faceMap,arr[0]);}
+  if(Object.values(faceMap).some(v=>!v)){alert("Cubemap incompleto");return;}
+  cubeTex=await new THREE.CubeTextureLoader().loadAsync([faceMap.posx,faceMap.negx,faceMap.posy,faceMap.negy,faceMap.posz,faceMap.negz]);
+  cubeTex.colorSpace=THREE.SRGBColorSpace;
+  if(!skyboxMesh){const box=new THREE.BoxGeometry(1000,1000,1000); const shader=THREE.ShaderLib["cube"],uni=THREE.UniformsUtils.clone(shader.uniforms); const mat=new THREE.ShaderMaterial({fragmentShader:shader.fragmentShader,vertexShader:shader.vertexShader,uniforms:uni,depthWrite:false,side:THREE.BackSide}); skyboxMesh=new THREE.Mesh(box,mat); scene.add(skyboxMesh);}
+  skyboxMesh.material.uniforms.tCube.value=cubeTex; renderOnce();
+}
 
-    const texture = await loadTexture(fileOrUrl);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    sphereMesh.material.map = texture;
-    sphereMesh.material.needsUpdate = true;
-    renderOnce();
-  }
+function keyFromName(n){n=n.toLowerCase();if(n.includes("posx")||n.includes("px"))return"posx";
+if(n.includes("negx")||n.includes("nx"))return"negx";if(n.includes("posy")||n.includes("py"))return"posy";
+if(n.includes("negy")||n.includes("ny"))return"negy";if(n.includes("posz")||n.includes("pz"))return"posz";
+if(n.includes("negz")||n.includes("nz"))return"negz";return null;}
 
-  // --- Cubemap: 6 faces (posx,negx,posy,negy,posz,negz) ---
-  async function loadCubemap(filesOrUrls) {
-    currentMode = "cubemap";
-    document.getElementById('m-cm').checked = true;
+function resize(){const w=window.innerWidth,h=window.innerHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);renderOnce();}
+window.addEventListener('resize',resize);
 
-    // limpar cena
-    disposeIf(sphereMesh);
-    sphereMesh = null;
-    clearBackground();
+function renderOnce(){controls.update();renderer.render(scene,camera);}
+(function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);})();
 
-    // ordenar/match dos 6 arquivos por nome
-    const faceMap = { posx:null, negx:null, posy:null, negy:null, posz:null, negz:null };
-    const names = Array.isArray(filesOrUrls) ? filesOrUrls : [filesOrUrls];
+// UI
+const DEMO_EQ_URL="https://threejs.org/examples/textures/2294472375_24a3b8ef46_o.jpg";
+const DEMO_CM_URLS={posx:"https://threejs.org/examples/textures/cube/Bridge2/posx.jpg",negx:"https://threejs.org/examples/textures/cube/Bridge2/negx.jpg",posy:"https://threejs.org/examples/textures/cube/Bridge2/posy.jpg",negy:"https://threejs.org/examples/textures/cube/Bridge2/negy.jpg",posz:"https://threejs.org/examples/textures/cube/Bridge2/posz.jpg",negz:"https://threejs.org/examples/textures/cube/Bridge2/negz.jpg"};
 
-    // Se vierem File objects
-    if (names[0] instanceof File) {
-      for (const f of names) {
-        const key = keyFromName(f.name);
-        if (key && key in faceMap) faceMap[key] = URL.createObjectURL(f);
-      }
-    } else {
-      // URLs já categorizadas {posx:..., ...} ou array simples com nomes no path
-      for (const it of names) {
-        const key = typeof it === 'string' ? keyFromName(it) : null;
-        if (key && key in faceMap) faceMap[key] = it;
-        // também aceitar objeto {posx: '...', ...}
-        if (typeof it === 'object') Object.assign(faceMap, it);
-      }
-    }
+document.getElementById("m-eq").addEventListener("change",()=>loadEquirect(DEMO_EQ_URL));
+document.getElementById("m-cm").addEventListener("change",()=>loadCubemap(DEMO_CM_URLS));
+document.getElementById("fileEq").addEventListener("change",e=>{if(e.target.files[0])loadEquirect(e.target.files[0]);});
+document.getElementById("fileCm").addEventListener("change",e=>{if(e.target.files.length)loadCubemap(Array.from(e.target.files));});
+document.getElementById("btnDemoEq").addEventListener("click",()=>loadEquirect(DEMO_EQ_URL));
+document.getElementById("btnDemoCm").addEventListener("click",()=>loadCubemap(DEMO_CM_URLS));
+document.getElementById("btnFS").addEventListener("click",()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen());
+document.addEventListener("keydown",e=>{if(e.key==="f"||e.key==="F")document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();});
 
-    // checar se temos todas as faces
-    if (Object.values(faceMap).some(v => !v)) {
-      alert("Cubemap incompleto. Garanta posx, negx, posy, negy, posz, negz nos nomes dos arquivos.");
-      return;
-    }
+const drop=document.getElementById("drop");
+["dragenter","dragover"].forEach(ev=>container.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("show");}));
+["dragleave","drop"].forEach(ev=>container.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("show");}));
+container.addEventListener("drop",e=>{const f=[...e.dataTransfer.files];if(f.length===1)loadEquirect(f[0]);else if(f.length>1)loadCubemap(f);});
 
-    // carregar como CubeTexture
-    if (cubeTex) { cubeTex.dispose(); cubeTex = null; }
-    const loader = new THREE.CubeTextureLoader();
-    cubeTex = await new Promise((resolve, reject) => {
-      loader.load(
-        [faceMap.posx, faceMap.negx, faceMap.posy, faceMap.negy, faceMap.posz, faceMap.negz],
-        tex => { tex.colorSpace = THREE.SRGBColorSpace; resolve(tex); },
-        undefined,
-        err => reject(err)
-      );
-    });
-
-    // duas opções: (A) scene.background = cubeTex; (B) mesh “skybox” BackSide
-    // Usaremos mesh para permitir efeitos futuros; visual é idêntico para olhar ao redor.
-    if (!skyboxMesh) {
-      const box = new THREE.BoxGeometry(1000, 1000, 1000);
-      const shader = THREE.ShaderLib["cube"];
-      const uni = THREE.UniformsUtils.clone(shader.uniforms);
-      uni["tCube"].value = null;
-      const mat = new THREE.ShaderMaterial({
-        fragmentShader: shader.fragmentShader,
-        vertexShader: shader.vertexShader,
-        uniforms: uni,
-        depthWrite: false,
-        side: THREE.BackSide
-      });
-      skyboxMesh = new THREE.Mesh(box, mat);
-      scene.add(skyboxMesh);
-    }
-    skyboxMesh.material.uniforms.tCube.value = cubeTex;
-    renderOnce();
-  }
-
-  // --- Utilitários ---
-  function keyFromName(name) {
-    const n = name.toLowerCase();
-    if (n.includes("posx") || n.includes("px")) return "posx";
-    if (n.includes("negx") || n.includes("nx")) return "negx";
-    if (n.includes("posy") || n.includes("py")) return "posy";
-    if (n.includes("negy") || n.includes("ny")) return "negy";
-    if (n.includes("posz") || n.includes("pz")) return "posz";
-    if (n.includes("negz") || n.includes("nz")) return "negz";
-    return null;
-  }
-
-  function loadTexture(fileOrUrl) {
-    const loader = new THREE.TextureLoader();
-    return new Promise((resolve, reject) => {
-      const url = fileOrUrl instanceof File ? URL.createObjectURL(fileOrUrl) : fileOrUrl;
-      loader.load(url, tex => resolve(tex), undefined, err => reject(err));
-    });
-  }
-
-  function resize() {
-    const hHeader = document.querySelector('header').offsetHeight;
-    const w = window.innerWidth, h = window.innerHeight - hHeader;
-    camera.aspect = w / h; camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-    renderOnce();
-  }
-  window.addEventListener('resize', resize);
-
-  function renderOnce() {
-    controls.update();
-    renderer.render(scene, camera);
-  }
-
-  // loop de animação leve (damping do OrbitControls)
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-
-  // --- UI ---
-  const rEq = document.getElementById('m-eq');
-  const rCm = document.getElementById('m-cm');
-  const fileEq = document.getElementById('fileEq');
-  const fileCm = document.getElementById('fileCm');
-  const btnFS = document.getElementById('btnFS');
-  const btnDemoEq = document.getElementById('btnDemoEq');
-  const btnDemoCm = document.getElementById('btnDemoCm');
-
-  rEq.addEventListener('change', () => { if (rEq.checked) loadEquirect(DEMO_EQ_URL); });
-  rCm.addEventListener('change', () => { if (rCm.checked) loadCubemap(DEMO_CM_URLS); });
-
-  fileEq.addEventListener('change', ev => {
-    if (ev.target.files && ev.target.files[0]) loadEquirect(ev.target.files[0]);
-  });
-  fileCm.addEventListener('change', ev => {
-    if (ev.target.files && ev.target.files.length) loadCubemap(Array.from(ev.target.files));
-  });
-
-  btnFS.addEventListener('click', toggleFullscreen);
-  document.addEventListener('keydown', (e) => { if ((e.key === 'f' || e.key === 'F')) toggleFullscreen(); });
-
-  function toggleFullscreen() {
-    const el = document.documentElement;
-    if (!document.fullscreenElement) el.requestFullscreen?.();
-    else document.exitFullscreen?.();
-  }
-
-  // --- Drag & drop ---
-  const drop = document.getElementById('drop');
-  ['dragenter','dragover'].forEach(ev =>
-    container.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('show'); })
-  );
-  ['dragleave','drop'].forEach(ev =>
-    container.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('show'); })
-  );
-  container.addEventListener('drop', e => {
-    const files = Array.from(e.dataTransfer.files || []);
-    if (!files.length) return;
-    if (files.length === 1) loadEquirect(files[0]);
-    else loadCubemap(files);
-  });
-
-  // --- Demos (imagens públicas de exemplo dos exemplos do Three/recursos equivalentes) ---
-  // Para sua produção, troque essas URLs pelos seus assets.
-  const DEMO_EQ_URL = "https://threejs.org/examples/textures/2294472375_24a3b8ef46_o.jpg"; // panorama do exemplo equirectangular
-  // Para cubemap: usaremos o set "Park" do clássico demo educacional (ou substitua pelos seus arquivos)
-  const DEMO_CM_URLS = {
-    posx: "https://threejs.org/examples/textures/cube/Bridge2/posx.jpg",
-    negx: "https://threejs.org/examples/textures/cube/Bridge2/negx.jpg",
-    posy: "https://threejs.org/examples/textures/cube/Bridge2/posy.jpg",
-    negy: "https://threejs.org/examples/textures/cube/Bridge2/negy.jpg",
-    posz: "https://threejs.org/examples/textures/cube/Bridge2/posz.jpg",
-    negz: "https://threejs.org/examples/textures/cube/Bridge2/negz.jpg"
-  };
-
-  btnDemoEq.addEventListener('click', () => loadEquirect(DEMO_EQ_URL));
-  btnDemoCm.addEventListener('click', () => loadCubemap(DEMO_CM_URLS));
-
-  // inicial
-  loadEquirect(DEMO_EQ_URL);
-  resize();
+loadEquirect(DEMO_EQ_URL); resize();
 </script>
 </body>
 </html>
-
